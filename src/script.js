@@ -1,120 +1,90 @@
 import * as THREE from "three";
-import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import GUI from "lil-gui";
+import { MeshToonMaterial } from "three";
+
+/**
+ * Debug
+ */
+const gui = new GUI();
+
+const parameters = {
+  materialColor: "#ffeded",
+};
+
+gui.addColor(parameters, "materialColor").onChange(() => {
+  material.color.set(parameters.materialColor);
+});
+
+/***
+ * Loader
+ */
+const textureLoader = new THREE.TextureLoader();
+const gradientTexture = textureLoader.load("/textures/gradients/3.jpg");
+gradientTexture.magFilter = THREE.NearestFilter;
+
+let scroll = window.scrollY;
+let cursor = {
+  x: 0,
+  y: 0,
+};
+
+window.addEventListener("scroll", () => {
+  scroll = window.scrollY;
+});
+
+window.addEventListener("mousemove", (event) => {
+  cursor.x = event.clientX / sizes.width - 0.5;
+  cursor.y = -(event.clientY / sizes.height - 0.5);
+});
 
 /**
  * Base
  */
-// Debug
-const gui = new GUI();
-
 // Canvas
 const canvas = document.querySelector("canvas.webgl");
 
 // Scene
 const scene = new THREE.Scene();
 
+const distance = 3;
+
 /**
- * Particles
+ * Objects
  */
-const params = {
-  count: 42600,
-  size: 0.015,
-  radius: 3.78,
-  spin: 1,
-  branches: 11,
-  randomness: 1.508,
-  randomnessPower: 9.557,
-  insideColor: "#ff6030",
-  outsideColor: "#1b3984",
-};
+const material = new MeshToonMaterial({
+  color: parameters.materialColor,
+  gradientMap: gradientTexture,
+});
+const torus = new THREE.Mesh(
+  new THREE.TorusGeometry(0.3, 0.2, 32, 64),
+  material
+);
+torus.position.z = 3;
 
-let particlesGeometry = null;
-let particlesMaterial = null;
-let particlesMesh = null;
+const roof = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.8, 3), material);
+roof.position.z = 3;
 
-const colorInside = new THREE.Color(params.insideColor);
-const colorOutside = new THREE.Color(params.outsideColor);
+const cube = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 1), material);
+cube.position.z = 3;
 
-const createGalaxy = (animation) => {
-  if (particlesMesh) {
-    particlesGeometry.dispose();
-    particlesMaterial.dispose();
-    scene.remove(particlesMesh);
-  }
+torus.position.y = -(distance * 0);
+roof.position.y = -(distance * 1);
+cube.position.y = -(distance * 2);
 
-  particlesGeometry = new THREE.BufferGeometry();
+scene.add(torus, roof, cube);
 
-  const positions = new Float32Array(params.count * 3);
-  const colors = new Float32Array(params.count * 3);
+/**
+ * Light
+ */
+const ambientLight = new THREE.AmbientLight();
+ambientLight.color = new THREE.Color(0xffffff);
+ambientLight.intensity = 1;
+scene.add(ambientLight);
 
-  for (let i = 0; i < params.count; i++) {
-    const i3 = i * 3;
-    const radius = Math.random() * params.radius;
+const directionalLight = new THREE.DirectionalLight();
+directionalLight.position.x = 2;
 
-    const spinAngle = radius * params.spin;
-    const branchAngle = ((i % params.branches) / params.branches) * Math.PI * 2;
-
-    // this get the particles newerest to the line
-    // Math.pow(random, value)
-    const randomX =
-      Math.pow(Math.random(), params.randomnessPower) *
-      (Math.random() > 0.5 ? 1 : -1);
-    const randomY =
-      Math.pow(Math.random(), params.randomnessPower) *
-      (Math.random() > 0.5 ? 1 : -1);
-    const randomZ =
-      Math.pow(Math.random(), params.randomnessPower) *
-      (Math.random() > 0.5 ? 1 : -1);
-
-    positions[i3] = Math.sin(branchAngle + spinAngle) * radius + randomX;
-    positions[i3 + 1] = randomY;
-    positions[i3 + 2] = Math.cos(branchAngle + spinAngle) * radius + randomZ;
-
-    const mixedColor = colorInside.clone();
-
-    mixedColor.lerp(colorOutside, radius / params.radius);
-
-    colors[i3 + 0] = mixedColor.r;
-    colors[i3 + 1] = mixedColor.g;
-    colors[i3 + 2] = mixedColor.b;
-  }
-
-  particlesGeometry.setAttribute(
-    "position",
-    new THREE.BufferAttribute(positions, 3)
-  );
-
-  particlesGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-
-  particlesMaterial = new THREE.PointsMaterial({
-    size: params.size,
-    sizeAttenuation: true,
-    blending: THREE.AdditiveBlending,
-    vertexColors: true,
-  });
-
-  particlesMesh = new THREE.Points(particlesGeometry, particlesMaterial);
-
-  scene.add(particlesMesh);
-};
-
-gui.add(params, "count").min(100).max(50000).step(100).onChange(createGalaxy);
-gui.add(params, "size").min(0.001).max(0.1).step(0.001).onChange(createGalaxy);
-gui.add(params, "radius").min(0.01).max(20).step(0.01).onChange(createGalaxy);
-gui.add(params, "randomness").min(0).max(2).step(0.001).onChange(createGalaxy);
-gui.add(params, "branches").min(2).max(20).step(1).onChange(createGalaxy);
-gui.add(params, "spin").min(-5).max(5).step(0.001).onChange(createGalaxy);
-gui.addColor(params, "insideColor").onChange(createGalaxy);
-gui.addColor(params, "outsideColor").onChange(createGalaxy);
-gui
-  .add(params, "randomnessPower")
-  .min(1)
-  .max(10)
-  .step(0.001)
-  .onChange(createGalaxy);
-
-createGalaxy();
+scene.add(directionalLight);
 
 /**
  * Sizes
@@ -143,25 +113,27 @@ window.addEventListener("resize", () => {
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(
-  75,
+  35,
   sizes.width / sizes.height,
   0.1,
   100
 );
-camera.position.x = 3;
-camera.position.y = 3;
-camera.position.z = 2;
-scene.add(camera);
+camera.position.z = 6;
 
-// Controls
-const controls = new OrbitControls(camera, canvas);
-controls.enableDamping = true;
+/***
+ * Group
+ */
+const cameraGroup = new THREE.Group();
+cameraGroup.add(camera);
+
+scene.add(cameraGroup);
 
 /**
  * Renderer
  */
 const renderer = new THREE.WebGLRenderer({
   canvas: canvas,
+  alpha: true,
 });
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
@@ -174,10 +146,20 @@ const clock = new THREE.Clock();
 const tick = () => {
   const elapsedTime = clock.getElapsedTime();
 
-  particlesMesh.rotation.y = elapsedTime * 0.1;
+  torus.rotation.y = elapsedTime * 0.5;
+  torus.rotation.x = elapsedTime * 0.8;
 
-  // Update controls
-  controls.update();
+  cube.rotation.y = elapsedTime * 0.5;
+  cube.rotation.x = elapsedTime * 0.8;
+
+  roof.rotation.y = elapsedTime * 0.5;
+
+  cameraGroup.position.y = cursor.y;
+  cameraGroup.position.x = cursor.x;
+  camera.position.y = -(scroll / sizes.height) * distance;
+
+  // Camera
+  // camera.position.y = scrollY /
 
   // Render
   renderer.render(scene, camera);
