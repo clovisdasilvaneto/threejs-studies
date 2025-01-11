@@ -1,90 +1,172 @@
 import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import GUI from "lil-gui";
-import { MeshToonMaterial } from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { RGBELoader } from "three/examples/jsm/loaders/RGBELoader.js";
 
 /**
- * Debug
+ * Loaders
  */
-const gui = new GUI();
-
-const parameters = {
-  materialColor: "#ffeded",
-};
-
-gui.addColor(parameters, "materialColor").onChange(() => {
-  material.color.set(parameters.materialColor);
-});
-
-/***
- * Loader
- */
+const gltfLoader = new GLTFLoader();
+const rgbeLoader = new RGBELoader();
 const textureLoader = new THREE.TextureLoader();
-const gradientTexture = textureLoader.load("/textures/gradients/3.jpg");
-gradientTexture.magFilter = THREE.NearestFilter;
 
-let scroll = window.scrollY;
-let cursor = {
-  x: 0,
-  y: 0,
-};
+const floorColorTexture = textureLoader.load(
+  "/textures/wood_cabinet_worn_long/wood_cabinet_worn_long_diff_1k.jpg"
+);
 
-window.addEventListener("scroll", () => {
-  scroll = window.scrollY;
-});
+floorColorTexture.colorSpace = THREE.SRGBColorSpace;
 
-window.addEventListener("mousemove", (event) => {
-  cursor.x = event.clientX / sizes.width - 0.5;
-  cursor.y = -(event.clientY / sizes.height - 0.5);
-});
+const floorARMTexture = textureLoader.load(
+  "/textures/wood_cabinet_worn_long/wood_cabinet_worn_long_arm_1k.jpg"
+);
+const floorNormalTexture = textureLoader.load(
+  "/textures/wood_cabinet_worn_long/wood_cabinet_worn_long_nor_gl_1k.jpg"
+);
+
+const brickColorTexture = textureLoader.load(
+  "/textures/castle_brick_broken_06/castle_brick_broken_06_diff_1k.jpg"
+);
+
+brickColorTexture.colorSpace = THREE.SRGBColorSpace;
+
+const brickARMTexture = textureLoader.load(
+  "/textures/castle_brick_broken_06/castle_brick_broken_06_arm_1k.jpg"
+);
+const brickNormalTexture = textureLoader.load(
+  "/textures/castle_brick_broken_06/castle_brick_broken_06_nor_gl_1k.jpg"
+);
 
 /**
  * Base
  */
+// Debug
+const gui = new GUI();
+
 // Canvas
 const canvas = document.querySelector("canvas.webgl");
 
 // Scene
 const scene = new THREE.Scene();
 
-const distance = 3;
-
 /**
+ * Update all materials
+ */
+const updateAllMaterials = () => {
+  scene.traverse((child) => {
+    if (child.isMesh) {
+      child.castShadow = true;
+      child.receiveShadow = true;
+    }
+  });
+};
+
+/***
  * Objects
  */
-const material = new MeshToonMaterial({
-  color: parameters.materialColor,
-  gradientMap: gradientTexture,
+const floorGeometry = new THREE.PlaneGeometry(40, 40, 32);
+const floorMaterial = new THREE.MeshStandardMaterial({
+  map: floorColorTexture,
+  roughnessMap: floorARMTexture,
+  aoMap: floorARMTexture,
+  metalnessMap: floorARMTexture,
+  normalMap: floorNormalTexture,
 });
-const torus = new THREE.Mesh(
-  new THREE.TorusGeometry(0.3, 0.2, 32, 64),
-  material
-);
-torus.position.z = 3;
 
-const roof = new THREE.Mesh(new THREE.ConeGeometry(0.8, 0.8, 3), material);
-roof.position.z = 3;
+const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+floor.rotation.x = -Math.PI * 0.5;
 
-const cube = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 1), material);
-cube.position.z = 3;
+scene.add(floor);
 
-torus.position.y = -(distance * 0);
-roof.position.y = -(distance * 1);
-cube.position.y = -(distance * 2);
+/***
+ * Wall
+ */
+const wallGeometry = new THREE.PlaneGeometry(40, 40, 32);
+const wallMaterial = new THREE.MeshStandardMaterial({
+  map: brickColorTexture,
+  roughnessMap: brickARMTexture,
+  aoMap: brickARMTexture,
+  metalnessMap: brickARMTexture,
+  normalMap: brickNormalTexture,
+});
 
-scene.add(torus, roof, cube);
+const wall = new THREE.Mesh(wallGeometry, wallMaterial);
+wall.position.y = 4;
+wall.position.z = -4;
+
+scene.add(wall);
 
 /**
- * Light
+ *  Light
  */
-const ambientLight = new THREE.AmbientLight();
-ambientLight.color = new THREE.Color(0xffffff);
-ambientLight.intensity = 1;
-scene.add(ambientLight);
+const directionalLight = new THREE.DirectionalLight("#FFFFFF", 6);
+directionalLight.position.set(-4, 6.5, 2.5);
 
-const directionalLight = new THREE.DirectionalLight();
-directionalLight.position.x = 2;
+gui
+  .add(directionalLight, "intensity")
+  .min(0)
+  .max(10)
+  .step(0.001)
+  .name("Light intensity");
+gui
+  .add(directionalLight.position, "x")
+  .min(-10)
+  .max(10)
+  .step(0.001)
+  .name("Light X");
+gui
+  .add(directionalLight.position, "y")
+  .min(-10)
+  .max(10)
+  .step(0.001)
+  .name("Light Y");
+gui
+  .add(directionalLight.position, "z")
+  .min(-10)
+  .max(10)
+  .step(0.001)
+  .name("Light Z");
+
+// Shadow
+directionalLight.castShadow = true;
+directionalLight.shadow.camera.far = 15;
+directionalLight.shadow.mapSize.set(512, 512);
+
+gui.add(directionalLight, "castShadow");
 
 scene.add(directionalLight);
+
+const helper = new THREE.CameraHelper(directionalLight.shadow.camera);
+// scene.add(helper);
+
+directionalLight.target.position.set(0, 4, 0);
+directionalLight.target.updateWorldMatrix();
+
+/**
+ * Environment map
+ */
+// Intensity
+scene.environmentIntensity = 1;
+gui.add(scene, "environmentIntensity").min(0).max(10).step(0.001);
+
+// HDR (RGBE) equirectangular
+rgbeLoader.load("/environmentMaps/0/2k.hdr", (environmentMap) => {
+  environmentMap.mapping = THREE.EquirectangularReflectionMapping;
+
+  // scene.background = environmentMap;
+  scene.environment = environmentMap;
+});
+
+/**
+ * Models
+ */
+// Helmet
+gltfLoader.load("/models/FlightHelmet/glTF/FlightHelmet.gltf", (gltf) => {
+  gltf.scene.scale.set(10, 10, 10);
+  scene.add(gltf.scene);
+
+  updateAllMaterials();
+});
 
 /**
  * Sizes
@@ -113,53 +195,50 @@ window.addEventListener("resize", () => {
  */
 // Base camera
 const camera = new THREE.PerspectiveCamera(
-  35,
+  75,
   sizes.width / sizes.height,
   0.1,
   100
 );
-camera.position.z = 6;
+camera.position.set(4, 5, 4);
+scene.add(camera);
 
-/***
- * Group
- */
-const cameraGroup = new THREE.Group();
-cameraGroup.add(camera);
-
-scene.add(cameraGroup);
+// Controls
+const controls = new OrbitControls(camera, canvas);
+controls.target.y = 3.5;
+controls.enableDamping = true;
 
 /**
  * Renderer
  */
 const renderer = new THREE.WebGLRenderer({
   canvas: canvas,
-  alpha: true,
+  // antialias: true,
 });
 renderer.setSize(sizes.width, sizes.height);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 
+// TONE MAPPING
+renderer.toneMapping = THREE.ReinhardToneMapping;
+renderer.toneMappingExposure = 3;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFShadowMap;
+
+gui.add(renderer, "toneMapping", {
+  No: THREE.NoToneMapping,
+  Linear: THREE.LinearToneMapping,
+  Reinhard: THREE.ReinhardToneMapping,
+  Cineon: THREE.CineonToneMapping,
+  ACESFilm: THREE.ACESFilmicToneMapping,
+});
+gui.add(renderer, "toneMappingExposure").min(0).max(10).step(0.001);
+
 /**
  * Animate
  */
-const clock = new THREE.Clock();
-
 const tick = () => {
-  const elapsedTime = clock.getElapsedTime();
-
-  torus.rotation.y = elapsedTime * 0.5;
-  torus.rotation.x = elapsedTime * 0.8;
-
-  cube.rotation.y = elapsedTime * 0.5;
-  cube.rotation.x = elapsedTime * 0.8;
-
-  roof.rotation.y = elapsedTime * 0.5;
-
-  cameraGroup.position.y = cursor.y;
-  cameraGroup.position.x = cursor.x;
-  camera.position.y = -(scroll / sizes.height) * distance;
-
-  // Camera
-  // camera.position.y = scrollY /
+  // Update controls
+  controls.update();
 
   // Render
   renderer.render(scene, camera);
